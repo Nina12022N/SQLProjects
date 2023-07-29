@@ -1,0 +1,44 @@
+Project #1
+-- patients in lowell in the pediatrics department
+ select rp.first_name,
+        rp.last_name, 
+        rp.city, 
+        rl.name
+ from custom.relevant_visits rv
+    Left join custom.relevant_patients rp on rp.id = rv.patient_id 
+    inner join custom.relevant_locations rl on rl.id = rv.location_id
+     where rl.id in ('35' ,'115001002') 
+     AND rp.city in ('LOWELL')
+
+Project #2
+-- -- how many discrepencies are there between visit and claims diagnoses? 
+DROP TABLE IF EXISTS visitdiagnosis;
+CREATE TEMP TABLE visitdiagnosis AS
+SELECT
+    dx.pat_id,
+    dx.pat_enc_csn_id, 
+    edg.dx_id,
+    COALESCE (edg.current_icd10_list,edg.current_icd9_list) as visit_code
+FROM epic.pat_enc_dx dx
+INNER JOIN epic.clarity_edg edg ON edg.dx_id = dx.dx_id 
+INNER JOIN (
+    SELECT p.* 
+    FROM epic.pat_enc p 
+    INNER JOIN epic.clarity_dep cd ON cd.department_id = p.department_id
+    LEFT JOIN epic.zc_appt_status a ON a.appt_status_c = p.appt_status_c
+    WHERE a.name = 'Completed'
+    AND cd.department_name ilike '%LCHC%'
+)  p ON p.pat_enc_csn_id = dx.pat_enc_csn_id ;
+
+DROP TABLE IF EXISTS claimsdiagnosis;
+CREATE TEMP TABLE claimsdiagnosis AS 
+Select tran.pat_enc_csn_id,
+Case  when  tran.DX_ONE_ID is not null then tran.dx_one_id 
+      when tran.DX_TWO_ID is not null then tran.dx_two_id 
+      when tran.DX_THREE_ID is not null then tran.dx_three_id
+      when tran.DX_FOUR_ID is not null then tran.dx_four_id 
+      when tran.DX_FIVE_ID is not null then tran.dx_five_id 
+      when tran.DX_SIX_ID is not null then tran.dx_six_id 
+      End as claims_diagnosis
+From epic.clarity_tdl_tran tran
+INNER JOIN epic.pat_enc en ON en.pat_enc_csn_id = tran.pat_enc_csn_id 
